@@ -94,11 +94,7 @@ async function handleChat(request, env) {
 
   let upstream;
   try {
-    upstream = await fetch(GEMINI_URL, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
-      body: JSON.stringify(body),
-    });
+    upstream = await callModel(body, env.GEMINI_API_KEY);
   } catch (err) {
     return json({ error: "মডেল সার্ভারে পৌঁছানো যায়নি। একটু পরে আবার চেষ্টা করুন।" }, 502);
   }
@@ -191,6 +187,28 @@ function upstreamMessage(status) {
     return "মডেলের নাম পাওয়া যায়নি। কোডে মডেলের নাম আপডেট দরকার।";
   }
   return "মডেল সার্ভারে সমস্যা হয়েছে (কোড: " + status + ")। একটু পরে আবার চেষ্টা করুন।";
+}
+
+// মডেল যদি সাময়িকভাবে ব্যস্ত থাকে (৫০৩), একটু পর পর আবার চেষ্টা করি (সর্বোচ্চ ২ বার)।
+// সীমা শেষ (৪২৯) বা অন্য ভুলে আবার চেষ্টা করি না।
+const RETRY_DELAYS_MS = [2000, 4000];
+
+async function callModel(body, apiKey) {
+  for (let attempt = 0; ; attempt++) {
+    const upstream = await fetch(GEMINI_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify(body),
+    });
+    if (upstream.status !== 503 || attempt >= RETRY_DELAYS_MS.length) {
+      return upstream;
+    }
+    await sleep(RETRY_DELAYS_MS[attempt]);
+  }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function samePassword(given, expected) {

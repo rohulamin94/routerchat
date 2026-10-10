@@ -166,6 +166,74 @@ test("ভুল পথে 404, GET /api/chat-এ 405", async () => {
   assert.equal(r2.status, 405);
 });
 
+test("মডেল ব্যস্ত (৫০৩) থাকলে একটু পরে আবার চেষ্টা করে, দ্বিতীয়বারে সফল হলে উত্তর দেয়", async () => {
+  let calls = 0;
+  const harnessFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    calls++;
+    if (calls === 1) return new Response("{}", { status: 503 });
+    return new Response(
+      JSON.stringify({ candidates: [{ content: { parts: [{ text: "দ্বিতীয়বারের উত্তর" }] } }] }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  };
+  try {
+    const res = await worker.fetch(chatRequest(OK_BODY), ENV);
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.equal(data.reply, "দ্বিতীয়বারের উত্তর");
+    assert.equal(calls, 2);
+  } finally {
+    globalThis.fetch = harnessFetch;
+  }
+});
+
+test("মডেল বারবার ব্যস্ত থাকলে তিনবার চেষ্টার পর বাংলা বার্তা, চাবি দেখায় না", async () => {
+  let calls = 0;
+  const harnessFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    calls++;
+    return new Response("{}", { status: 503 });
+  };
+  try {
+    const res = await worker.fetch(chatRequest(OK_BODY), ENV);
+    assert.equal(res.status, 502);
+    const data = await res.json();
+    assert.ok(data.error.includes("503"));
+    assert.ok(!JSON.stringify(data).includes(ENV.GEMINI_API_KEY));
+    assert.equal(calls, 3);
+  } finally {
+    globalThis.fetch = harnessFetch;
+  }
+});
+
+test("সীমা শেষ (৪২৯) হলে আবার চেষ্টা করে না", async () => {
+  let calls = 0;
+  const harnessFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    calls++;
+    return new Response("{}", { status: 429 });
+  };
+  try {
+    const res = await worker.fetch(chatRequest(OK_BODY), ENV);
+    assert.equal(res.status, 429);
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = harnessFetch;
+  }
+});
+
+test("মডেলের নিয়মে নতুন নিয়ম ৭–১০ আছে", async () => {
+  const res = await worker.fetch(chatRequest(OK_BODY), ENV);
+  assert.equal(res.status, 200);
+  const sent = JSON.parse(upstreamCalls[0].init.body);
+  const rules = sent.systemInstruction.parts[0].text;
+  assert.ok(rules.includes("7. লিংক নিশ্চিত না হলে"));
+  assert.ok(rules.includes("8. উৎসে না থাকলে"));
+  assert.ok(rules.includes("9. উৎস স্পষ্ট না বললে"));
+  assert.ok(rules.includes("10. আর্কাইভ"));
+});
+
 let failed = 0;
 for (const t of tests) {
   upstreamCalls = [];
