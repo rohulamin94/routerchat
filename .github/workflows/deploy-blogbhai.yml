@@ -21,7 +21,15 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Deploy to Cloudflare Workers
+      # প্রথমবার Worker আগে তৈরি হতে হবে; তারপর তাতে secret যোগ হয়।
+      - name: Create the Worker
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Upload secrets and deploy
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
