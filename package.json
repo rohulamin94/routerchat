@@ -1,0 +1,10 @@
+{
+  "name": "blogbhai",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "BlogBhai: বাংলা কনটেন্ট সহকারী, Cloudflare Worker + Gemini (ফ্রি টিয়ার)",
+  "scripts": {
+    "test": "node test/run-tests.mjs"
+  }
+}
