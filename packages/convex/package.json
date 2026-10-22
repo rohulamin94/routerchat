@@ -1,5 +1,5 @@
 {
-    "name": "@convex",
+    "name": "@routerchat/convex",
     "version": "0.2.0",
     "private": true,
     "types": "convex/_generated/api.d.ts",
